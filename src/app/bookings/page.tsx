@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import Link from 'next/link';
+import Header from '@/components/Header';
 
 const STATUS_LABELS = {
   en: {
@@ -110,26 +111,9 @@ export default function CustomerBookingsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-3 flex justify-between items-center">
-          <Link href="/" className="text-xl font-bold text-primary-800">
-            Adam & Chriss
-          </Link>
-          <nav className="flex items-center gap-4">
-            <Link href="/services" className="text-gray-600 hover:text-primary-600">
-              {tNav('services')}
-            </Link>
-            <Link
-              href="/book"
-              className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-full text-sm"
-            >
-              {tNav('book')}
-            </Link>
-          </nav>
-        </div>
-      </header>
+    <Header />
 
-      <main className="container mx-auto px-4 py-8 max-w-3xl">
+    <main className="container mx-auto px-4 py-8 max-w-3xl">
         <h1 className="text-2xl font-bold text-primary-800 mb-2">
           {t('title')}
         </h1>
@@ -148,12 +132,12 @@ export default function CustomerBookingsPage() {
               value={whatsapp}
               onChange={(e) => setWhatsapp(e.target.value)}
               placeholder="+20 100 000 0000"
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-primary-500 touch-target-sm"
               disabled={isPending}
             />
             <button
               type="submit"
-              className="px-6 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium disabled:opacity-50"
+              className="px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium disabled:opacity-50 touch-target-sm"
               disabled={isPending}
             >
               {isPending ? t('searching') : t('lookupButton')}
@@ -252,7 +236,7 @@ export default function CustomerBookingsPage() {
                     {booking.status === 'PENDING_DEPOSIT' || booking.status === 'CONFIRMED' ? (
                       <button
                         onClick={() => handleCancelRequest(booking.id)}
-                        className="text-sm px-3 py-1.5 rounded-lg border border-red-300 text-red-700 hover:bg-red-50 font-medium disabled:opacity-50"
+                        className="text-sm px-4 py-2 rounded-lg border border-red-300 text-red-700 hover:bg-red-50 font-medium disabled:opacity-50 touch-target-sm"
                         disabled={isPending}
                       >
                         {t('cancelButton')}

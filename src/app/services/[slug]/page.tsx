@@ -22,9 +22,6 @@ export default function ServiceDetailPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="absolute top-4 right-4 z-10">
-        <LanguageToggle />
-      </div>
       <Header />
 
       <main className="container mx-auto px-4 py-12 max-w-3xl">

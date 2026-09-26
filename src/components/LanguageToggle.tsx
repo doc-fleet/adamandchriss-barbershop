@@ -17,7 +17,7 @@ export default function LanguageToggle() {
   return (
     <button
       onClick={switchLocale}
-      className="px-3 py-1 text-sm bg-gray-100 rounded-full hover:bg-gray-200 transition"
+      className="px-4 py-2 text-sm bg-gray-100 rounded-full hover:bg-gray-200 transition touch-target touch-target-sm"
     >
       {otherLabel}
     </button>

@@ -55,13 +55,13 @@ export default async function AdminBookingsPage({
       </h2>
 
       {/* Filters */}
-      <div className="mb-4 flex gap-4">
-        <form method="GET" className="flex gap-2 items-center">
-          <select
-            name="status"
-            defaultValue={statusFilter || 'all'}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-          >
+      <div className="mb-4 flex gap-4 flex-wrap">
+      <form method="GET" className="flex gap-2 items-center flex-wrap">
+        <select
+          name="status"
+          defaultValue={statusFilter || 'all'}
+          className="px-3 py-2.5 border border-gray-300 rounded-lg text-sm touch-target-sm min-w-[140px]"
+        >
             <option value="all">{locale === 'en' ? 'All Statuses' : 'جميع الحالات'}</option>
             {statuses.map((s) => (
               <option key={s} value={s}>
@@ -71,7 +71,7 @@ export default async function AdminBookingsPage({
           </select>
           <button
             type="submit"
-            className="px-3 py-2 bg-primary-600 text-white text-sm rounded-lg"
+            className="px-4 py-2.5 bg-primary-600 text-white text-sm rounded-lg touch-target-sm"
           >
             {locale === 'en' ? 'Apply' : 'تطبيق'}
           </button>

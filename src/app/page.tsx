@@ -14,11 +14,6 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-white text-gray-900">
-      {/* Language toggle in top right */}
-      <div className="absolute top-4 right-4 z-10">
-        <LanguageToggle />
-      </div>
-
       <Header showBooking={true} />
 
       <main className="container mx-auto px-4 py-8 md:py-16">

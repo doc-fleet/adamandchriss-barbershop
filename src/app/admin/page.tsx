@@ -117,14 +117,14 @@ export default async function AdminDashboardPage() {
         </h3>
         <div className="flex gap-4">
           <a
-            href="/admin/bookings"
-            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition"
+          href="/admin/bookings"
+          className="px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition text-sm touch-target-sm"
           >
             {locale === 'en' ? 'View Bookings' : 'عرض الحجوزات'}
           </a>
           <a
-            href="/admin/calendar"
-            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition"
+          href="/admin/calendar"
+          className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm touch-target-sm"
           >
             {locale === 'en' ? 'Calendar View' : 'عرض التقويم'}
           </a>

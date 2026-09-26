@@ -387,7 +387,7 @@ export default async function AdminBookingDetailPage({
                   >
                     <button
                       type="submit"
-                      className="w-full py-2.5 px-4 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg text-sm transition"
+                      className="w-full py-3 px-4 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg text-sm transition touch-target-sm"
                     >
                       {locale === 'en' ? 'Confirm Booking' : 'تأكيد الحجز'}
                     </button>
@@ -408,7 +408,7 @@ export default async function AdminBookingDetailPage({
                   >
                     <button
                       type="submit"
-                      className="w-full py-2.5 px-4 bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg text-sm transition"
+                      className="w-full py-3 px-4 bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg text-sm transition touch-target-sm"
                     >
                       {locale === 'en' ? 'Cancel Booking' : 'إلغاء الحجز'}
                     </button>

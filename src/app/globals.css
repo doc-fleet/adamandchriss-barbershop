@@ -6,9 +6,27 @@
   html {
     font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
     scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
   }
   body {
     @apply bg-white text-gray-900 antialiased;
+  }
+}
+
+/* Viewport-fit for notches */
+@layer base {
+  body {
+    @apply min-h-screen;
+  }
+}
+
+/* Touch target minimum — all interactive elements 44px */
+@layer components {
+  .touch-target {
+    @apply min-h-[44px] min-w-[44px];
+  }
+  .touch-target-sm {
+    @apply min-h-[44px];
   }
 }
 
@@ -17,7 +35,26 @@
   text-align: right;
 }
 
+[dir="rtl"] .space-x- {
+  @apply space-x-reverse;
+}
+
+/* RTL: flip paddings/margins that need it via utility classes */
+[dir="rtl"] .rtl\:space-x-reverse {
+  --tw-space-x-reverse: 1;
+}
+
 /* Loading spinner */
 .spinner {
   @apply animate-spin rounded-full border-2 border-gray-300 border-t-primary-600;
+}
+
+/* Mobile-optimized tap highlights */
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button, a, input, select, textarea {
+    @apply touch-target-sm;
+  }
 }
