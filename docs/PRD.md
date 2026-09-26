@@ -1,0 +1,270 @@
+# Adam & Chriss — PRD (Product Requirements Document)
+
+| Field | Value |
+|---|---|
+| **Type** | Product Requirements Document |
+| **Status** | **Finalized v1** ✅ |
+| **Owner** | Shehab Bassam (solo dev, AI-assisted) |
+| **Client** | Adam & Chriss — elite mobile barbering venture, Cairo |
+| **Created** | 2026-09-21 |
+| **Updated** | 2026-09-26 |
+| **Companion** | [[adamandchriss project plan]] · [[adamandchriss.com Terms]] |
+| **Repo** | `github.com/doc-fleet/adamandchriss-barbershop` |
+| **Working dir** | `~/doc-devs/dev-projects/adamandchriss-barbershop` |
+
+---
+
+## 1. Vision
+
+Adam & Chriss is a **cloud barber**: an elite, booking-only grooming service that comes to the client — hotels, select locations, anywhere in Cairo. No walk-ins, no ringing phone, no dashboard to learn. The **website is the business hub** (single source of truth for bookings, payments, and data); a **WhatsApp agent is the front door**; and a **natural-language admin is the owner's operating system**.
+
+**The single most important sentence:** *Every payment — including cash — flows through the website, and the owner runs the entire business by talking to it in Arabic.*
+
+**Positioning:** elite service. The booking requirement + deposits are the customer filter. The experience must feel like a concierge service, not a booking form.
+
+---
+
+## 2. Target Users
+
+| User | Who | What they need | What the product gives |
+|---|---|---|---|
+| **Client (primary)** | Elite locals, foreign guests, hotel concierges booking for guests | Book a barber to come to them, pay securely, get confirmation on WhatsApp | Mobile-first bilingual site + WhatsApp agent: NL booking, instant availability, deposit payment, QR for balance, confirmations & reminders |
+| **Owner / Barber (admin)** | Egyptian owner, not tech-savvy, limited English | Run the business without learning software; focus on cutting hair | Arabic-first NL admin: confirm bookings, block days, see revenue, get accounting sheets, marketing drafts — all by chat |
+| **German partner (viewer)** | Co-owner abroad | Visibility into the venture's performance | Read-only analytics view (phase 2+; export/sheets from day one) |
+| **Future barbers** | Hired year 2+ | Their own schedule + bookings | Multi-barber data model from day one; per-barber availability, NL onboarding ("add a barber named Ahmed, works Wed–Sat") |
+
+**Design constraint #1:** the owner is not tech-savvy. If a task can't be done by typing a sentence in Arabic, it's designed wrong.
+
+**Design constraint #2:** clients are often foreign — English-first customer surface, Arabic available; trivially speakable domain (adamandchriss.com).
+
+---
+
+## 3. Product Surfaces
+
+1. **Public website** (mobile-first, EN/AR) — services, availability, booking flow, payment, booking status page
+2. **WhatsApp agent** (dedicated number) — conversational booking, FAQ, inquiries, callbacks, confirmations, payment links
+3. **Admin panel** (web, Arabic-first) — calendar, bookings, inquiries, payments, and the NL console
+4. **API layer** — the single source of truth; both surfaces write to the same database
+
+---
+
+## 4. Feature Requirements
+
+### 4.1 Service Catalog
+
+- Fixed services at launch: **Hair · Beard · Grooming Session · The Works** — each with duration, price, deposit % (default 30–40%), description EN/AR
+- **Custom service path:** client describes what they want in free text (NL) → agent summarizes + suggests closest service → becomes an **inquiry** → owner quotes price/time → converts to booking
+- Prices/durations editable by owner via NL or admin panel
+- Service images/portfolio (owner's work) — trust driver for elite clients
+
+**Service defaults (config-driven; owner confirms before launch):**
+
+| Service | Duration | Price (EGP) | Deposit % |
+|---|---|---|---|
+| Hair | 30 min | TBD | 30% |
+| Beard | 30 min | TBD | 30% |
+| Grooming Session | 45 min | TBD | 30% |
+| The Works | 60 min | TBD | 40% |
+
+Prices and durations are editable via admin NL; the data model exists from day one.
+
+### 4.2 Booking Engine
+
+- **Availability check first:** client picks a service → sees real availability (barber calendar − existing bookings − travel buffers − lead-time cutoff)
+- **Scheduling rules (all configurable via admin NL):**
+  - Minimum lead time: booking starts ≥ 4h from now (default)
+  - Travel buffer: 45–60 min gap between appointments (default: 60 min)
+  - Working hours / days off per barber
+  - Location (hotel/area) required on every booking
+- **Booking states:** `pending_deposit → confirmed → in_progress → completed → cancelled` (+ `no_show`)
+- **Hold mechanism:** tentative slot held (15 min) while client pays the deposit; released on timeout
+- Multi-barber ready: bookings belong to a barber; availability is per-barber; assignment rules later
+
+### 4.3 Deposits & Payments (Paymob)
+
+- Deposit at booking (30–40%, per service) — via Paymob card payment or payment link
+- **Balance on-site, two ways:**
+  - **QR code** generated by the website (per-booking, amount = balance) — client scans, pays, done. No navigating the website. QR shown on the barber's phone (admin) and on the booking status page.
+  - **Cash** — barber records amount in-system (admin tap / NL "cash 500 for the 3pm") so gross stays complete
+- **All payments — card, QR, or cash — are recorded through the website.** This is the revenue-share foundation: one auditable monthly gross number.
+- **Refunds:** Full refund ≥ 24h before; **<24h → deposit forfeited** (default; one config value).
+- Paymob fees (~2.5–3%) are the owner's cost of business; gross is calculated before fees.
+
+### 4.4 WhatsApp Agent (Business Cloud API)
+
+**Autonomy levels:**
+
+| Level | Capability | Agent action |
+|---|---|---|
+| L1 — FAQ | Services, prices, coverage, policies, travel | Answers instantly from catalog |
+| L2 — Availability | "Free tomorrow at 3?" | Checks calendar, proposes slots |
+| L3 — Booking | Client commits to a slot | Creates tentative booking, notifies owner, holds slot |
+| L4 — Inquiry | Custom requests, callbacks, anything ambiguous | Summarizes, files to inquiry inbox |
+
+- **Confirm-everything at launch:** every L3 booking waits for owner approval (config flag; loosen to auto-book standard services later)
+- Owner approves/replies from the admin panel **in Arabic**; agent relays to client in the client's language
+- Confirmations, reminders (24h + 2h before), and payment links sent via WhatsApp
+- Callback requests = inquiry type with phone number; owner calls on his own time
+- Dedicated SIM/number for the venture — the owner's personal phone never rings
+
+### 4.5 Natural Language Interfaces
+
+**Customer NL** (DeepSeek via cloud Hermes agent, free plan, per-conversation + monthly caps): booking, availability, service questions, custom requests — via WhatsApp and an on-site chat widget.
+
+**Admin NL** (DeepSeek via the same agent, capped; Claude escalation for low-confidence/high-stakes operations): the owner's operating system.
+
+| Category | Example commands (Arabic in practice) |
+|---|---|
+| Schedule | "Show me my bookings this week" · "What's next Tuesday look like?" · "Block Friday, I'm traveling" · "Cancel the 3pm tomorrow" · "Move Ahmed's booking to 5pm" |
+| Revenue | "How much did I make last April?" · "This month vs last month" · "Cash vs card split" |
+| Customers | "Who are my top 5 customers?" · "Which hotel books most?" · "Any repeat clients I should message?" |
+| Services | "Change The Works price to 800" · "Grooming session now takes 90 minutes" |
+| Barbers | "Add a barber named Ahmed, works Wed–Sat, 12–9" · "Show Mahmoud's schedule" |
+| Accounting | "Make me a sheet for March" · "Export everything for my accountant" |
+| Marketing | "Suggest a marketing idea for Ramadan" · "Draft an Instagram post about the grooming package" · "Which service should I promote?" |
+| Insights | "What's my most popular service?" · "Best day of the week?" · "Where do cancellations come from?" |
+| Reviews | "Show me recent reviews" · "Ask the 4pm client for a Google review" |
+
+**Proactive suggestions (phase 4+):** agent notices empty slots tomorrow and proposes a promo; flags a client who hasn't returned in 6 weeks; warns deposit-refund deadline approaching.
+
+### 4.6 Admin Panel (Arabic-first)
+
+- Calendar view (day/week) with booking states
+- Inquiry inbox (custom requests + callbacks) — reply in Arabic, agent translates
+- Payments view: deposits, balances collected (QR/cash/card), refunds
+- NL console — the primary interface; buttons exist as fallback, chat is the path of least resistance
+- Accounting export: monthly sheet (gross, share, costs) — the owner is not a spreadsheet person; the system produces the sheet
+
+### 4.7 Bilingual (EN/AR)
+
+- Customer surface: English default, Arabic toggle (RTL)
+- Admin surface: Arabic default, English toggle
+- Agent detects and replies in the client's language; owner always works in Arabic
+- Currency: EGP; prices displayed consistently
+
+---
+
+## 5. Core User Flows
+
+### 5.1 Website booking (happy path)
+1. Client opens adamandchriss.com (mobile) → services with prices/durations
+2. Picks "The Works" → picks date → sees only real availability
+3. Enters location (hotel picker + area) + name + WhatsApp number
+4. Pays deposit (Paymob) → booking `confirmed`
+5. WhatsApp confirmation to client + notification to owner
+6. Reminder 24h + 2h before
+7. On-site: balance via QR (client scans → pays) or cash (owner records) → `completed`
+
+### 5.2 WhatsApp booking
+1. Client messages the number (from a hotel card, QR on a flyer, or the website)
+2. Agent (L1/L2): answers, checks availability, proposes slots
+3. Client commits → tentative booking + owner notification
+4. Owner approves in Arabic → agent confirms to client + sends payment link
+5. Deposit paid → confirmed → same as 5.1 from step 5
+
+### 5.3 Custom request
+1. Client: "I have a wedding Thursday, I want a full styling + beard, I'm at the Marriott"
+2. Agent summarizes, suggests closest service, files as inquiry
+3. Owner replies in Arabic with price + time → agent relays in English
+4. Client accepts → inquiry converts to booking → deposit flow
+
+### 5.4 Callback request
+Client: "Can someone call me?" → inquiry with phone number → owner calls on his time → booking may follow.
+
+---
+
+## 6. Data Model
+
+```
+Service        id, name_en, name_ar, duration_min, price_egp, deposit_pct, active, description_en/ar
+Barber         id, name, phone, languages, working_hours (JSON), active, created_via (NL|admin)
+Availability   id, barber_id, day/range, is_off, buffer_min
+Booking        id, code, client_id, barber_id, service_id (nullable if custom), custom_text,
+               start_at, end_at, location_text, area/zone, status, deposit_amount, balance_amount,
+               source (website|whatsapp), language, notes
+Client         id, name, whatsapp, phone, email, language, hotel, notes, tags (vip/repeat)
+Inquiry        id, client_id, type (custom|callback|other), text, agent_summary, status,
+               owner_reply, converted_booking_id
+Payment        id, booking_id, method (card|qr|cash), amount, currency, paymob_ref, status, recorded_by
+Payout/Share   month, gross_collected, share_30, costs, net — computed for the monthly statement
+ReviewPrompt   id, booking_id, sent_at, responded, google_review_flag
+```
+
+- **Booking.code** — short human code (e.g., `AC-1042`) for WhatsApp/admin reference
+- Zones stored from day one (zone pricing is phase 2, but the data must exist)
+
+---
+
+## 7. Non-Functional Requirements
+
+- **Mobile-first:** ~100% of client traffic is phones. Desktop is a bonus. Thumb-reachable CTAs, minimal typing (pickers over keyboards), WhatsApp number pre-filled.
+- **Performance:** LCP < 2.5s on 4G Cairo; Next.js static shell + dynamic availability.
+- **Reliability:** booking + payment webhooks idempotent; no double-booking (DB-level constraints, not just app logic).
+- **Security:** Paymob-hosted payment fields (no card data touches the server), admin auth 2FA, WhatsApp webhook signature verification.
+- **Costs (monthly, owner-visible):** WhatsApp API free ≤ ~1K conversations; AI near zero at MVP scale (DeepSeek via Hermes agent free plan, capped; Claude escalation only); VPS shared with existing projects.
+- **Uptime:** it's a booking system for one barber — 99.5% is fine; graceful degradation (site down → WhatsApp still works, agent stores to DB on retry).
+
+---
+
+## 8. Tech Stack (locked for MVP)
+
+| Layer | Choice | Rationale |
+|---|---|---|
+| App | Next.js 14 App Router (Server Actions + Route Handlers) | Full-stack in one codebase; fastest solo-dev MVP |
+| DB | Postgres + Prisma | Known; strong constraints against double-booking |
+| Cache | Redis | Sessions, slot holds (15-min deposit window) |
+| WhatsApp | Business Cloud API | Official, webhook-based, free tier |
+| Payments | Paymob | Already integrated elsewhere; card + links + QR |
+| NL | DeepSeek (customer + admin) via cloud Hermes agent on free plan, chat-capped · Claude escalation for complex admin | Near-zero AI cost; models swappable via config |
+| QR | `qrcode` (server-side) | Per-booking payment QR |
+| Hosting | Hostinger VPS KVM 2, Docker, Cloudflare | Existing infra |
+
+Extraction to NestJS only if the multi-barber SaaS future materializes.
+
+---
+
+## 9. Phases (MVP ≈ 5 weeks)
+
+| Phase | Weeks | Deliverables | Exit criteria |
+|---|---|---|---|
+| **1 — Core booking** | 1–2 | Catalog, availability engine, booking flow, deposit via Paymob, basic admin (calendar, bookings) | A booking can be made + paid end-to-end on a phone |
+| **2 — WhatsApp agent** | 2–3 | Cloud API integration, L1–L3 agent, owner approval flow, confirmations + payment links | A booking can be made entirely over WhatsApp |
+| **3 — QR + bilingual + polish** | 3–4 | On-site QR balance, cash recording, EN/AR + RTL, reminders, cancellation policy | Balance collected on-site without the client navigating the site |
+| **4 — Admin NL + insights** | 4–5 | NL console (schedule/revenue/services/barbers), monthly sheet export, marketing drafts | Owner runs a full day using only Arabic chat |
+
+**Post-MVP backlog:** auto-book flag, zone pricing, German partner read-only view, Google review flow, proactive agent suggestions, walk-in shop website (separate project).
+
+---
+
+## 10. Open Items → Decisions Log
+
+This section consolidates everything that was previously "open" and tracks its resolution. Items marked 🟡 remain pending owner input and are implemented as **config-driven defaults**.
+
+| # | Topic | Status | Resolution |
+|---|---|---|---|
+| 1 | Service prices/durations | 🟡 Pending owner input | Catalog data model built; prices/durations are editable via admin NL. Defaults hardcoded in config for launch; owner sets real values before go-live. |
+| 2 | Cancellation <24h policy | ✅ Decided | **Deposit forfeited** if cancelled <24h before booking. Enforced in booking engine. One config value to switch to 50% refund later. |
+| 3 | Upfront fee option | ✅ Decided | 150,000 EGP total: 15K upfront at build start + 135K collected from 30% of monthly gross (up to 12 months from launch). |
+| 4 | AI cost split | ✅ Decided | Near zero (DeepSeek via Hermes agent free plan, capped). If costs ever become significant, deducted from gross before the 30% split, with a monthly cap. |
+| 5 | Auto-book trigger | 🟡 Configurable | **Start:** confirm-everything (barber approves all bookings). Config flag `auto_book_standard_services` (default `false`); owner flips to `true` once the system proves reliable. |
+| 6 | Zone pricing rules | 🟡 Phase 2 | Zones captured in data from day one; pricing logic deferred to phase 2. |
+| 7 | Google Business / Maps setup | 🟡 Phase 4 | Review flow with new barbershop tagging scoped for phase 4. |
+| 8 | Unpaid-balance settlement | 🟡 To agree at review | If the venture stops before the 135K is collected, or 12 months pass with a remainder: settle together (installments / negotiated close-out / cancellation). 15K upfront is non-refundable. |
+
+---
+
+## 11. Success Metrics
+
+- **MVP success:** 10+ completed bookings in the first month through the website/agent; owner operates it without Shehab's help after training
+- **Venture success (12-mo term):** consistent monthly gross covering costs + meaningful share; repeat-client rate; hotel/concierge partnerships
+- **Product health:** booking completion rate, deposit → completion conversion, WhatsApp response time, zero double-bookings
+
+---
+
+## 12. Out of Scope (MVP)
+
+- Walk-in shop management (separate project, separate budget)
+- Multi-tenant SaaS / other barbershops
+- Native apps (site is the app)
+- Loyalty programs, subscriptions ("grooming club" — backlog idea worth revisiting)
+- Arabic voice input (text NL only at MVP; voice later if the owner wants it)
