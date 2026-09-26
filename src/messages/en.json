@@ -1,0 +1,70 @@
+{
+  "navigation": {
+    "services": "Services",
+    "book": "Book Now",
+    "contact": "Contact",
+    "admin": "Admin",
+    "login": "Login",
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm"
+  },
+  "homepage": {
+    "hero": "Elite mobile barbering — comes to you in Cairo",
+    "sub": "Booking-only service at your hotel or chosen location",
+    "cta": "Book Your Session"
+  },
+  "services": {
+    "title": "Services",
+    "duration": "Duration",
+    "price": "Price",
+    "deposit": "Deposit",
+    "bookNow": "Book Now",
+    "minutes": "minutes",
+    "viewDetails": "View Details"
+  },
+  "booking": {
+    "selectService": "Select a Service",
+    "selectTime": "Select Date & Time",
+    "details": "Your Details",
+    "payment": "Deposit Payment",
+    "confirmation": "Booking Confirmed!",
+    "location": "Location (Hotel / Area)",
+    "name": "Full Name",
+    "whatsapp": "WhatsApp Number",
+    "email": "Email (optional)",
+    "payDeposit": "Pay Deposit",
+    "noSlots": "No available slots on this day. Try another date.",
+    "step": {
+      "service": "Service",
+      "time": "Date & Time",
+      "details": "Details",
+      "payment": "Payment"
+    }
+  },
+  "paymob": {
+    "processing": "Processing payment...",
+    "failed": "Payment failed. Please try again.",
+    "success": "Payment successful!"
+  },
+  "admin": {
+    "calendar": "Calendar",
+    "bookings": "Bookings",
+    "inquiries": "Inquiries",
+    "payments": "Payments",
+    "services": "Services",
+    "settings": "Settings",
+    "dashboard": "Dashboard",
+    "filterByStatus": "Filter by status",
+    "allStatuses": "All statuses",
+    "searchPlaceholder": "Search bookings...",
+    "markCompleted": "Mark Completed",
+    "recordCash": "Record Cash"
+  },
+  "common": {
+    "loading": "Loading...",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous"
+  }
+}
