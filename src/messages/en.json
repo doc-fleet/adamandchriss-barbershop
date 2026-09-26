@@ -2,6 +2,7 @@
   "navigation": {
     "services": "Services",
     "book": "Book Now",
+    "myBookings": "My Bookings",
     "contact": "Contact",
     "admin": "Admin",
     "login": "Login",
@@ -41,6 +42,23 @@
       "details": "Details",
       "payment": "Payment"
     }
+  },
+  "bookings": {
+    "title": "My Bookings",
+    "subtitle": "View and manage your appointments",
+    "lookupLabel": "WhatsApp Number",
+    "lookupButton": "View My Bookings",
+    "searching": "Searching...",
+    "enterNumber": "Please enter your WhatsApp number",
+    "enterNumberFirst": "Enter your WhatsApp number above to view your bookings",
+    "myBookings": "My Bookings",
+    "noBookings": "You have no bookings yet",
+    "cancelButton": "Request Cancellation",
+    "cancelConfirm": "Send a cancellation inquiry to the admin?",
+    "cancelSent": "Cancellation request sent! The admin will review and contact you.",
+    "cancelFailed": "Failed to send cancellation request. Please try again.",
+    "notFound": "No account found with this WhatsApp number",
+    "networkError": "Network error. Please try again."
   },
   "paymob": {
     "processing": "Processing payment...",

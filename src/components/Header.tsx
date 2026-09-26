@@ -24,9 +24,14 @@ export default function Header({ showBooking = true }: Props) {
             {t('services')}
           </Link>
           {showBooking && (
-            <Link href="/book" className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-full">
-              {t('book')}
-            </Link>
+            <>
+              <Link href="/bookings" className="text-gray-600 hover:text-primary-600">
+                {t('myBookings')}
+              </Link>
+              <Link href="/book" className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-full">
+                {t('book')}
+              </Link>
+            </>
           )}
           <LanguageToggle />
         </nav>
