@@ -1,12 +1,11 @@
+// next.config.js — Common.js compatible (no TS imports)
 /** @type {import('next').NextConfig} */
 module.exports = {
   reactStrictMode: true,
-  i18n: {
-    locales: ['en', 'ar'],
-    defaultLocale: 'en',
-    localeDetection: true,
-  },
   images: {
-    domains: ['images.unsplash.com'],
+    remotePatterns: [
+      { protocol: 'https', hostname: 'images.unsplash.com' },
+      { protocol: 'https', hostname: 'res.cloudinary.com' },
+    ],
   },
 };

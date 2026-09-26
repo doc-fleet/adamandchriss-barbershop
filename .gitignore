@@ -1,0 +1,17 @@
+node_modules/
+.env
+.env.local
+.dev.db
+*.db
+*.db-journal
+.prisma
+.next/
+dist/
+
+# Build artifacts
+tsconfig.tsbuildinfo
+patch.patch
+
+# OS files
+.DS_Store
+src/.DS_Store

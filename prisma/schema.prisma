@@ -1,0 +1,160 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Service {
+  id            Int      @id @default(autoincrement())
+  nameEn        String
+  nameAr        String
+  durationMin   Int
+  priceEgp      Int
+  depositPct    Int      @default(30)
+  active        Boolean  @default(true)
+  descriptionEn String?
+  descriptionAr String?
+  image         String?
+  slug          String   @unique
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  bookings      Booking[]
+}
+
+model Barber {
+  id           Int            @id @default(autoincrement())
+  name         String
+  phone        String?
+  languages    String?        // e.g. "en,ar"
+  workingHours String?        // JSON string, parsed in app code
+  active       Boolean        @default(true)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  bookings     Booking[]
+  availability Availability[]
+}
+
+model Availability {
+  id        Int     @id @default(autoincrement())
+  barberId  Int
+  dayOfWeek Int     // 0=Mon .. 6=Sun
+  startTime String  // "10:00"
+  endTime   String  // "22:00"
+  isOff     Boolean @default(false)
+  bufferMin Int     @default(60)
+  barber    Barber  @relation(fields: [barberId], references: [id])
+
+  @@unique([barberId, dayOfWeek])
+}
+
+model Booking {
+  id              Int      @id @default(autoincrement())
+  code            String   @unique
+  clientId        Int
+  barberId        Int
+  serviceId       Int?
+  customText      String?
+  startAt         DateTime
+  endAt           DateTime
+  locationText    String
+  area            String?
+  status          String   @default("PENDING_DEPOSIT") // BookingStatus enum as string
+  depositAmount   Int
+  balanceAmount   Int
+  source          String   @default("WEBSITE") // BookingSource enum as string
+  language        String   @default("en")
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  client          Client     @relation(fields: [clientId], references: [id])
+  barber          Barber     @relation(fields: [barberId], references: [id])
+  service         Service?   @relation(fields: [serviceId], references: [id])
+  payments        Payment[]
+  inquiries       Inquiry[]
+
+  @@index([status])
+  @@index([startAt])
+}
+
+model Client {
+  id        Int       @id @default(autoincrement())
+  name      String
+  whatsapp  String?   @unique
+  phone     String?
+  email     String?
+  language  String    @default("en")
+  hotel     String?
+  notes     String?
+  tags      String?   // e.g. "vip,repeat"
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now())
+  bookings  Booking[]
+  inquiries Inquiry[]
+}
+
+model Inquiry {
+  id                 Int     @id @default(autoincrement())
+  clientId           Int?
+  type               String  @default("OTHER")    // InquiryType enum as string
+  text               String
+  agentSummary       String?
+  status             String  @default("OPEN")     // InquiryStatus enum as string
+  ownerReply         String?
+  convertedBookingId Int?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  client  Client?  @relation(fields: [clientId], references: [id])
+  booking Booking? @relation(fields: [convertedBookingId], references: [id])
+
+  @@index([status])
+}
+
+model Payment {
+  id          Int      @id @default(autoincrement())
+  bookingId   Int
+  method      String   @default("CARD")  // PaymentMethod enum as string
+  amount      Int      // in piastres (cents)
+  currency    String   @default("EGP")
+  paymobRef   String?
+  status      String   @default("PENDING") // PaymentStatus enum as string
+  recordedBy  String?  // "system" | "admin" | "cash"
+  createdAt   DateTime @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id])
+
+  @@index([bookingId])
+  @@index([status])
+}
+
+model PayoutShare {
+  id             Int      @id @default(autoincrement())
+  month          String   // "2024-09"
+  grossCollected Int
+  share30        Int
+  operatingCosts Int
+  net            Int
+  createdAt      DateTime @default(now())
+}
+
+model ReviewPrompt {
+  id            Int       @id @default(autoincrement())
+  bookingId     Int
+  sentAt        DateTime?
+  responded     Boolean   @default(false)
+  googleReviewFlag Boolean @default(false)
+
+  @@index([bookingId])
+}
+
+// Enum helpers (used as String in schema for SQLite compatibility)
+// BookingStatus: PENDING_DEPOSIT | CONFIRMED | IN_PROGRESS | COMPLETED | CANCELLED | NO_SHOW
+// BookingSource: WEBSITE | WHATSAPP
+// InquiryType: CUSTOM | CALLBACK | OTHER
+// InquiryStatus: OPEN | REPLIED | CONVERTED | CLOSED
+// PaymentMethod: CARD | QR | CASH
+// PaymentStatus: PENDING | PAID | FAILED | REFUNDED
