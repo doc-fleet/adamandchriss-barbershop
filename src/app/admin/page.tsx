@@ -2,20 +2,80 @@
 import { cookies } from 'next/headers';
 import prisma from '@/lib/prisma';
 import { formatCurrency } from '@/lib/utils';
+import RevenueChart from '@/components/Admin/RevenueChart';
+
+function getDayKey(date: Date): string {
+  return date.toISOString().split('T')[0];
+}
+
+function buildLast7Days(): { day: string; label: string; amount: number }[] {
+  const days: { day: string; label: string; amount: number }[] = [];
+  const now = new Date();
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    d.setHours(0, 0, 0, 0);
+    days.push({
+      day: getDayKey(d),
+      label: d.toLocaleDateString('en-US', { weekday: 'short' }),
+      amount: 0,
+    });
+  }
+  return days;
+}
 
 export default async function AdminDashboardPage() {
   const cookieStore = cookies();
   const locale = (cookieStore.get('NEXT_LOCALE')?.value || 'en') as 'en' | 'ar';
 
-  const [bookingCount, serviceCount, revenueTotal] = await Promise.all([
+  const [bookingCount, serviceCount, revenueTotal, recentBookings] = await Promise.all([
     prisma.booking.count(),
     prisma.service.count(),
     prisma.booking.aggregate({
       _sum: { depositAmount: true, balanceAmount: true },
     }),
+    // Fetch bookings from the last 7 days for the chart
+    prisma.booking.findMany({
+      where: {
+        startAt: {
+          gte: new Date(new Date().getTime() - 7 * 24 * 60 * 60 * 1000),
+        },
+      },
+      select: {
+        startAt: true,
+        depositAmount: true,
+        balanceAmount: true,
+        status: true,
+      },
+    }),
   ]);
 
-  const totalRevenue = (revenueTotal._sum.depositAmount || 0) + (revenueTotal._sum.balanceAmount || 0);
+  const totalRevenue =
+    (revenueTotal._sum.depositAmount || 0) + (revenueTotal._sum.balanceAmount || 0);
+
+  // Build 7-day revenue map (include all statuses like the existing total does)
+  const dayMap = new Map(buildLast7Days().map((d) => [d.day, d]));
+  for (const booking of recentBookings) {
+    const dayKey = getDayKey(booking.startAt);
+    if (dayMap.has(dayKey)) {
+      dayMap.set(
+        dayKey,
+        {
+          ...dayMap.get(dayKey)!,
+          amount: dayMap.get(dayKey)!.amount + booking.depositAmount + booking.balanceAmount,
+        },
+      );
+    }
+  }
+
+  const chartData = Array.from(dayMap.values()).map((d) => ({
+    ...d,
+    // Override label with localized short weekday name
+    label: new Date(d.day + 'T12:00:00').toLocaleDateString(
+      locale === 'ar' ? 'ar-EG' : 'en-US',
+      { weekday: 'short' },
+    ),
+  }));
 
   return (
     <div>
@@ -44,6 +104,11 @@ export default async function AdminDashboardPage() {
             {locale === 'en' ? 'Total Revenue (est.)' : 'إجمالي الإيرادات (تقريبي)'}
           </div>
         </div>
+      </div>
+
+      {/* Revenue chart */}
+      <div className="bg-white rounded-xl shadow-md p-6 mb-6">
+        <RevenueChart data={chartData} locale={locale} />
       </div>
 
       <div className="bg-white rounded-xl shadow-md p-6">
