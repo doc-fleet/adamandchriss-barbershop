@@ -152,7 +152,7 @@ model ReviewPrompt {
 }
 
 // Enum helpers (used as String in schema for SQLite compatibility)
-// BookingStatus: PENDING_DEPOSIT | CONFIRMED | IN_PROGRESS | COMPLETED | CANCELLED | NO_SHOW
+// BookingStatus: PENDING_DEPOSIT | CONFIRMED | IN_PROGRESS | CANCELLATION_PENDING | COMPLETED | CANCELLED | NO_SHOW
 // BookingSource: WEBSITE | WHATSAPP
 // InquiryType: CUSTOM | CALLBACK | OTHER
 // InquiryStatus: OPEN | REPLIED | CONVERTED | CLOSED
