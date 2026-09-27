@@ -84,5 +84,24 @@
     "back": "Back",
     "next": "Next",
     "previous": "Previous"
+  },
+  "contact": {
+    "title": "Get in Touch",
+    "subtitle": "Have questions? Send us a message and we'll reach out soon.",
+    "name": "Full Name",
+    "namePlaceholder": "John Smith",
+    "whatsapp": "WhatsApp Number",
+    "whatsappPlaceholder": "+20 100 123 4567",
+    "email": "Email (optional)",
+    "emailPlaceholder": "you@example.com",
+    "emailHint": "We'll only use this to get back to you.",
+    "preferredLanguage": "Preferred Language",
+    "message": "Your Message",
+    "messagePlaceholder": "How can we help you?",
+    "send": "Send Message",
+    "sending": "Sending...",
+    "error": "Failed to send your message. Please try again.",
+    "success": "Your message has been sent! We'll contact you soon.",
+    "required": "Please fill in your name, WhatsApp number, and message."
   }
 }

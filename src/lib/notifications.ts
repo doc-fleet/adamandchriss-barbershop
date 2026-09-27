@@ -1,471 +1,216 @@
-// src/lib/notifications.ts
-// Notification service: sends WhatsApp messages via the dedicated whatsapp.ts
-// transport layer (with retry + error handling) and emails via Nodemailer.
-//
-// Message scenarios:
-//   1. Booking confirmation — sent to the client when a booking is created.
-//   2. Booking status change — sent to the client on confirm / cancel /
-//      reassign / reschedule (admin actions).
-//   3. Barber assignment — sent to the barber when a booking is assigned or
-//      reassigned to them.
-import { sendWhatsAppSafe } from '@/lib/whatsapp';
-import { formatCurrency } from '@/lib/utils';
-import nodemailer from 'nodemailer';
-import { siteConfig } from '@/config/site';
+// src/lib/notifications.ts — Email notification service using Nodemailer
+import nodemailer, { Transporter } from 'nodemailer';
+import type { Booking, Client, Service, Barber } from '@prisma/client';
+
+const smtpConfig = {
+  host: process.env.SMTP_HOST,
+  port: parseInt(process.env.SMTP_PORT || '587'),
+  secure: process.env.SMTP_SECURE === 'true',
+  auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+};
+
+const fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER || '';
+const adminEmail = process.env.ADMIN_EMAIL || process.env.SMTP_USER || '';
+
+let transporter: Transporter | null = null;
+
+function getTransporter() {
+  if (!transporter && smtpConfig.host) {
+    transporter = nodemailer.createTransport(smtpConfig);
+  }
+  return transporter;
+}
+
+export async function sendBookingConfirmation(
+  client: Client,
+  booking: Booking & { service?: Service | null; barber: Barber },
+) {
+  if (!client.email) return { sent: false, reason: 'No email for client' };
+  const t = getTransporter();
+  if (!t) return { sent: false, reason: 'SMTP not configured' };
+
+  const totalAmount = booking.depositAmount + booking.balanceAmount;
+  const locale = client.language || 'en';
+
+  const subject = locale === 'en'
+    ? `Booking ${booking.code} Confirmed — Adam & Chriss`
+    : `تم تأكيد الحجز ${booking.code} - آدم و كريس`;
+
+  const html = locale === 'en'
+    ? `<h2>Booking Confirmed: ${booking.code}</h2><p>Service: ${booking.service?.nameEn || 'Custom Service'}</p><p>Barber: ${booking.barber.name}</p><p>Date & Time: ${booking.startAt.toLocaleString('en-US')}</p><p>Location: ${booking.locationText}</p><p>Deposit paid: ${booking.depositAmount} EGP</p><p>Balance to pay on-site: ${booking.balanceAmount} EGP</p><p>Total: ${totalAmount} EGP</p>`
+    : `<h2>تم تأكيد الحجز: ${booking.code}</h2><p>الخدمة: ${booking.service?.nameAr || 'خدمة مخصصة'}</p><p>الحلاق: ${booking.barber.name}</p><p>التاريخ والوقت: ${booking.startAt.toLocaleString('ar-EG')}</p><p>الموقع: ${booking.locationText}</p><p>الإيداع المدفوع: ${booking.depositAmount} جنيه</p><p>الرصيد المتبقي: ${booking.balanceAmount} جنيه</p><p>المجموع: ${totalAmount} جنيه</p>`;
+
+  try {
+    await t.sendMail({ from: fromEmail, to: client.email, subject, html });
+    return { sent: true };
+  } catch (error: any) {
+    console.error('Failed to send booking confirmation email:', error);
+    return { sent: false, error: error.message };
+  }
+}
+
+export async function sendAdminAlert(
+  booking: Booking & { client: Client; service?: Service | null; barber: Barber },
+) {
+  if (!adminEmail) return { sent: false, reason: 'No admin email configured' };
+  const t = getTransporter();
+  if (!t) return { sent: false, reason: 'SMTP not configured' };
+  const totalAmount = booking.depositAmount + booking.balanceAmount;
+  try {
+    await t.sendMail({
+      from: fromEmail, to: adminEmail,
+      subject: `New Booking ${booking.code} — ${booking.client.name}`,
+      html: `<h2>New Booking: ${booking.code}</h2><p>Client: ${booking.client.name} (${booking.client.whatsapp || booking.client.email || 'N/A'})</p><p>Service: ${booking.service?.nameEn || 'Custom Service'}</p><p>Barber: ${booking.barber.name}</p><p>Date & Time: ${booking.startAt.toLocaleString('en-US')}</p><p>Location: ${booking.locationText}</p><p>Deposit: ${booking.depositAmount} EGP | Balance: ${booking.balanceAmount} EGP | Total: ${totalAmount} EGP</p>`,
+    });
+    return { sent: true };
+  } catch (error: any) {
+    console.error('Failed to send admin alert email:', error);
+    return { sent: false, error: error.message };
+  }
+}
+
+export async function sendStatusUpdate(
+  client: Client,
+  booking: Booking & { service?: Service | null; barber: Barber },
+) {
+  if (!client.email) return { sent: false, reason: 'No email for client' };
+  const t = getTransporter();
+  if (!t) return { sent: false, reason: 'SMTP not configured' };
+  const locale = client.language || 'en';
+  const subject = locale === 'en' ? `Booking ${booking.code} Status Update` : `تحديث حالة الحجز ${booking.code}`;
+
+  const statusLabel: Record<string, Record<string, string>> = {
+    en: { CONFIRMED: 'Confirmed', IN_PROGRESS: 'In Progress', COMPLETED: 'Completed', CANCELLED: 'Cancelled', NO_SHOW: 'No Show' },
+    ar: { CONFIRMED: 'مؤكد', IN_PROGRESS: 'جارٍ الإنجاز', COMPLETED: 'مكتمل', CANCELLED: 'ملغي', NO_SHOW: 'لم يأتِ' },
+  };
+  const status = statusLabel[locale]?.[booking.status] || booking.status;
+  const serviceName = locale === 'en' ? booking.service?.nameEn : booking.service?.nameAr;
+
+  try {
+    await t.sendMail({
+      from: fromEmail, to: client.email, subject,
+      html: `<h2>${locale === 'en' ? 'Booking Status Update' : 'تحديق حالة الحجز'}</h2><p>${locale === 'en' ? 'Your booking' : 'حجزك'} ${booking.code} ${locale === 'en' ? 'is now' : 'الآن'}: <strong>${status}</strong></p><p>${locale === 'en' ? 'Service' : 'الخدمة'}: ${serviceName || '—'}</p>`,
+    });
+    return { sent: true };
+  } catch (error: any) {
+    console.error('Failed to send status update email:', error);
+    return { sent: false, error: error.message };
+  }
+}
+
+
+// Send an admin alert when a new contact inquiry is submitted
+export async function sendAdminContactAlert(
+  inquiry: { name: string; whatsapp?: string; email?: string; message: string },
+) {
+  const t = getTransporter();
+  if (!t) return { sent: false, reason: 'SMTP not configured' };
+
+  const html = `
+    <h2>New Contact Inquiry</h2>
+    <p><strong>Name:</strong> ${inquiry.name}</p>
+    ${inquiry.whatsapp ? `<p><strong>WhatsApp:</strong> ${inquiry.whatsapp}</p>` : ''}
+    ${inquiry.email ? `<p><strong>Email:</strong> ${inquiry.email}</p>` : ''}
+    <p><strong>Message:</strong> ${inquiry.message}</p>
+  `;
+
+  try {
+    await t.sendMail({
+      from: fromEmail,
+      to: adminEmail,
+      subject: `New Contact Inquiry from ${inquiry.name}`,
+      html,
+    });
+    return { sent: true };
+  } catch (error: any) {
+    console.error('Failed to send contact inquiry alert:', error);
+    return { sent: false, error: error.message };
+  }
+}
+
+
+// ─── Admin booking action notifications ───
 
 export type BookingAction = 'confirm' | 'cancel' | 'reassign' | 'reschedule';
 
-// --- Data shapes (structural — Prisma payloads satisfy these) ---
-
-interface BookingData {
-  code: string;
-  startAt: Date;
-  endAt?: Date;
-  locationText?: string;
-  depositAmount?: number;
-  balanceAmount?: number;
-  service: { nameEn: string; nameAr: string } | null;
-  barber: { name: string; phone?: string | null } | null;
-  /** Client info attached for barber notifications. */
-  client?: { name: string; whatsapp?: string | null };
-}
-
-interface ClientData {
-  name: string;
-  whatsapp: string | null;
-  email: string | null;
-  language: string;
-}
-
-interface BarberData {
-  name: string;
-  phone: string | null;
-  language?: string;
-}
-
-interface NotificationOptions {
-  newBarberName?: string;
-}
-
-// --- Locale helpers ---
-
-function getLocale(language: string): 'en' | 'ar' {
-  return language === 'ar' ? 'ar' : 'en';
-}
-
-function formatDatetime(dt: Date, locale: 'en' | 'ar'): string {
-  return new Date(dt).toLocaleString(locale === 'ar' ? 'ar-EG' : 'en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-function getServiceName(
-  service: { nameEn: string; nameAr: string } | null,
-  locale: 'en' | 'ar'
-): string {
-  if (!service) return locale === 'ar' ? 'الخدمة' : 'Service';
-  return locale === 'ar' ? service.nameAr : service.nameEn;
-}
-
-function formatPrice(amount: number, locale: 'en' | 'ar'): string {
-  return formatCurrency(amount, locale);
-}
-
-// --- Message template variables ---
-
-interface StatusMsgVars {
-  name: string;
-  code: string;
-  service: string;
-  datetime: string;
-  newBarber?: string;
-}
-
-interface ConfirmationMsgVars {
-  name: string;
-  code: string;
-  service: string;
-  datetime: string;
-  location: string;
-  deposit: string;
-  balance: string;
-  total: string;
-}
-
-interface BarberMsgVars {
-  barberName: string;
-  code: string;
-  service: string;
-  datetime: string;
-  location: string;
-  clientName: string;
-  clientPhone: string;
-}
-
-// --- Message templates: status changes (bilingual EN/AR) ---
-
-const SUBJECTS: Record<BookingAction, Record<'en' | 'ar', string>> = {
-  confirm: { en: 'Booking Confirmed', ar: 'تم تأكيد الحجز' },
-  cancel: { en: 'Booking Cancelled', ar: 'تم إلغاء الحجز' },
-  reassign: { en: 'Barber Changed', ar: 'تم تغيير الحلاق' },
-  reschedule: { en: 'Booking Rescheduled', ar: 'تمت إعادة جدولة الحجز' },
+const ACTION_LABELS = {
+  en: { confirm: 'Confirmed', cancel: 'Cancelled', reassign: 'Reassigned', reschedule: 'Rescheduled' },
+  ar: { confirm: 'مؤكد', cancel: 'ملغي', reassign: 'تغيير حلاق', reschedule: 'إعادة جدولة' },
 };
-
-const MESSAGES: Record<
-  BookingAction,
-  Record<'en' | 'ar', (vars: StatusMsgVars) => string>
-> = {
-  confirm: {
-    en: ({ name, code, service, datetime }) =>
-      `Hi ${name}! Your booking ${code} for ${service} on ${datetime} has been confirmed. See you soon!`,
-    ar: ({ name, code, service, datetime }) =>
-      `مرحبا ${name}! تم تأكيد حجزك ${code} لـ ${service} في ${datetime}. نراك قريبا!`,
-  },
-  cancel: {
-    en: ({ name, code, datetime }) =>
-      `Hi ${name}, your booking ${code} on ${datetime} has been cancelled. If you think this is an error, please contact us.`,
-    ar: ({ name, code, datetime }) =>
-      `مرحبا ${name}، تم إلغاء حجزك ${code} في ${datetime}. إذا كنت تعتقد أن هذا خطأ، يرجى التواصل معنا.`,
-  },
-  reassign: {
-    en: ({ name, code, datetime, newBarber }) =>
-      `Hi ${name}, the barber for your booking ${code} on ${datetime} has been changed to ${newBarber}. See you soon!`,
-    ar: ({ name, code, datetime, newBarber }) =>
-      `مرحبا ${name}، تم تغيير الحلاق لحجزك ${code} في ${datetime} إلى ${newBarber}. نراك قريبا!`,
-  },
-  reschedule: {
-    en: ({ name, code, datetime }) =>
-      `Hi ${name}, your booking ${code} has been rescheduled. New time: ${datetime}. If this doesn't work, please contact us.`,
-    ar: ({ name, code, datetime }) =>
-      `مرحبا ${name}، تمت إعادة جدولة حجزك ${code}. الوقت الجديد: ${datetime}. إذا لم يناسبك، يرجى التواصل معنا.`,
-  },
-};
-
-// --- Message templates: booking confirmation (on creation) ---
-
-const CONFIRMATION_SUBJECTS: Record<'en' | 'ar', string> = {
-  en: 'Booking Confirmation',
-  ar: 'تأكيد الحجز',
-};
-
-const CONFIRMATION_MESSAGES: Record<
-  'en' | 'ar',
-  (vars: ConfirmationMsgVars) => string
-> = {
-  en: ({ name, code, service, datetime, location, deposit, balance, total }) =>
-    `Hi ${name}! Your booking ${code} has been received and is pending confirmation.\n\n` +
-    `Service: ${service}\n` +
-    `Date & Time: ${datetime}\n` +
-    `Location: ${location}\n` +
-    `Deposit paid: ${deposit}\n` +
-    `Balance due: ${balance}\n` +
-    `Total: ${total}\n\n` +
-    `We'll confirm your booking once payment is verified. See you soon!`,
-  ar: ({ name, code, service, datetime, location, deposit, balance, total }) =>
-    `مرحبا ${name}! تم استلام حجزك ${code} وهو قيد الانتظار للتأكيد.\n\n` +
-    `الخدمة: ${service}\n` +
-    `التاريخ والوقت: ${datetime}\n` +
-    `الموقع: ${location}\n` +
-    `المقدار المدفوع: ${deposit}\n` +
-    `المتبقي: ${balance}\n` +
-    `الإجمالي: ${total}\n\n` +
-    `سيتم تأكيد حجزك عند التحقق من الدفع. نراك قريبا!`,
-};
-
-// --- Message templates: barber assignment ---
-
-const BARBER_SUBJECTS: Record<'en' | 'ar', string> = {
-  en: 'New Booking Assigned',
-  ar: 'تم تعيين حجز جديد',
-};
-
-const BARBER_MESSAGES: Record<
-  'en' | 'ar',
-  (vars: BarberMsgVars) => string
-> = {
-  en: ({ barberName, code, service, datetime, location, clientName, clientPhone }) =>
-    `Hi ${barberName}! Booking ${code} has been assigned to you.\n\n` +
-    `Client: ${clientName} (${clientPhone})\n` +
-    `Service: ${service}\n` +
-    `Date & Time: ${datetime}\n` +
-    `Location: ${location}\n\n` +
-    `Please confirm your availability.`,
-  ar: ({ barberName, code, service, datetime, location, clientName, clientPhone }) =>
-    `مرحبا ${barberName}! تم تعيين حجز ${code} لك.\n\n` +
-    `العميل: ${clientName} (${clientPhone})\n` +
-    `الخدمة: ${service}\n` +
-    `التاريخ والوقت: ${datetime}\n` +
-    `الموقع: ${location}\n\n` +
-    `يرجى تأكيد توافرك.`,
-};
-
-// --- Transport wrappers ---
 
 /**
- * Send a WhatsApp message via the dedicated transport module.
- * Throws on failure so callers can catch and log.
- */
-async function sendWhatsApp(to: string, body: string): Promise<void> {
-  const result = await sendWhatsAppSafe(to, body);
-  if (!result.success) {
-    throw new Error(result.error || 'WhatsApp send failed');
-  }
-}
-
-// --- Email transport (Nodemailer) ---
-
-async function sendEmail(to: string, subject: string, text: string): Promise<void> {
-  const smtpHost = process.env.SMTP_HOST;
-  const smtpPort = process.env.SMTP_PORT;
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
-  const smtpFrom = process.env.SMTP_FROM;
-
-  if (!smtpHost || !smtpUser || !smtpPass || !smtpFrom) {
-    console.log(
-      `[notifications] SMTP not configured — would send email to ${to}: ${text}`
-    );
-    return;
-  }
-
-  const transporter = nodemailer.createTransport({
-    host: smtpHost,
-    port: parseInt(smtpPort || '587', 10),
-    secure: smtpPort === '465',
-    auth: { user: smtpUser, pass: smtpPass },
-  });
-
-  await transporter.sendMail({
-    from: smtpFrom,
-    to,
-    subject,
-    text,
-    html: `<p>${text.replace(/\n/g, '<br>')}</p>`,
-  });
-  console.log(`[notifications] Email sent to ${to}`);
-}
-
-// --- Public API ---
-
-/**
- * Sends a notification to the client about a booking status change.
- * Sends via WhatsApp (if Twilio configured + client has a number)
- * and email (if SMTP configured + client has an email).
- * Never throws — all errors are logged and swallowed.
+ * Notify the client (email + WhatsApp) about a booking action
+ * performed by an admin (confirm, cancel, reassign, reschedule).
  */
 export async function sendBookingNotification(
-  booking: BookingData,
-  client: ClientData,
+  booking: Booking & { client: Client; service?: Service | null; barber: Barber },
+  client: Client,
   action: BookingAction,
-  options?: NotificationOptions
-): Promise<void> {
+  options?: { newBarberName?: string },
+) {
+  const locale = (client.language || 'en') as 'en' | 'ar';
+  const totalAmount = booking.depositAmount + booking.balanceAmount;
+  const actionLabel = ACTION_LABELS[locale][action];
+  const serviceName = locale === 'en'
+    ? booking.service?.nameEn || 'Custom Service'
+    : booking.service?.nameAr || 'خدمة مخصصة';
+  const timeStr = booking.startAt.toLocaleString(locale === 'en' ? 'en-US' : 'ar-EG');
+
+  // --- Email ---
+  const t = getTransporter();
+  if (t && client.email) {
+    const subject = locale === 'en'
+      ? `Booking ${booking.code} ${actionLabel}`
+      : `${actionLabel} حجز ${booking.code}`;
+    let html = `<h2>${subject}</h2>`;
+    html += `<p><strong>${locale === 'en' ? 'Service' : 'الخدمة'}:</strong> ${serviceName}</p>`;
+    if (action === 'reassign' && options?.newBarberName) {
+      html += `<p><strong>${locale === 'en' ? 'New Barber' : 'الحلاق الجديد'}:</strong> ${options.newBarberName}</p>`;
+    }
+    html += `<p><strong>${locale === 'en' ? 'Barber' : 'الحلاق'}:</strong> ${booking.barber?.name || '—'}</p>`;
+    html += `<p><strong>${locale === 'en' ? 'Date & Time' : 'التاريخ والوقت'}:</strong> ${timeStr}</p>`;
+    html += `<p><strong>${locale === 'en' ? 'Total' : 'المجموع'}:</strong> ${totalAmount} EGP</p>`;
+    try {
+      await t.sendMail({ from: fromEmail, to: client.email, subject, html });
+    } catch (error: any) {
+      console.error('Booking action email failed:', error);
+    }
+  }
+
+  // --- WhatsApp ---
   try {
-    const locale = getLocale(client.language);
-    const serviceName = getServiceName(booking.service, locale);
-    const datetime = formatDatetime(booking.startAt, locale);
-
-    const message = MESSAGES[action][locale]({
-      name: client.name,
-      code: booking.code,
-      service: serviceName,
-      datetime,
-      newBarber: options?.newBarberName,
-    });
-
-    const subject = SUBJECTS[action][locale];
-
-    // WhatsApp
-    if (client.whatsapp) {
-      try {
-        await sendWhatsApp(client.whatsapp, message);
-      } catch (error) {
-        console.error('[notifications] WhatsApp send failed:', error);
-      }
-    } else {
-      console.log('[notifications] No WhatsApp number for client, skipping');
+    const { sendWhatsAppMessage } = await import('@/lib/whatsapp');
+    const to = client.whatsapp || client.phone || null;
+    if (to) {
+      const labelService = locale === 'en' ? 'Service' : 'الخدمة';
+      const labelBarber = locale === 'en' ? 'Barber' : 'الحلاق';
+      const sms = locale === 'en'
+        ? `${actionLabel} ✓ Booking ${booking.code}
+${labelService}: ${serviceName}
+${labelBarber}: ${booking.barber?.name || '—'}
+${timeStr}`
+        : `${actionLabel} ✓ حجز ${booking.code}
+${labelService}: ${serviceName}
+${labelBarber}: ${booking.barber?.name || '—'}
+${timeStr}`;
+      await sendWhatsAppMessage(to, sms);
     }
-
-    // Email
-    if (client.email) {
-      try {
-        await sendEmail(client.email, subject, message);
-      } catch (error) {
-        console.error('[notifications] Email send failed:', error);
-      }
-    } else {
-      console.log('[notifications] No email on file for client, skipping');
-    }
-  } catch (error) {
-    console.error('[notifications] Failed to send notification:', error);
+  } catch (error: any) {
+    console.error('Booking action WhatsApp failed:', error);
   }
 }
 
-// --- Contact form inquiries (admin notification) ---
-
-interface ContactInquiryData {
-  name: string;
-  whatsapp: string | null;
-  email: string | null;
-  message: string;
-  preferredLanguage: string;
-}
-
-/**
- * Sends an admin notification email for a new contact-form inquiry.
- * Reuses the same SMTP transport as booking notifications and degrades
- * gracefully to a log line when SMTP is not configured (test mode).
- * Never throws — all errors are logged and swallowed.
- */
-export async function sendContactInquiryNotification(
-  inquiry: ContactInquiryData
-): Promise<void> {
-  try {
-    const locale = inquiry.preferredLanguage === 'ar' ? 'ar' : 'en';
-    const subject =
-      locale === 'ar'
-        ? 'استفسار جديد من نموذج الاتصال — آدم و كريس'
-        : 'New Contact Inquiry — Adam & Chriss';
-
-    const linesEn = [
-      'A new contact-form inquiry was received on the website.',
-      '',
-      `Name: ${inquiry.name}`,
-      `WhatsApp: ${inquiry.whatsapp || '—'}`,
-      `Email: ${inquiry.email || '—'}`,
-      `Preferred Language: ${inquiry.preferredLanguage || 'en'}`,
-      '',
-      'Message:',
-      inquiry.message,
-    ];
-    const linesAr = [
-      'تم استلام استفسار جديد من نموذج الاتصال على الموقع.',
-      '',
-      `الاسم: ${inquiry.name}`,
-      `الواتساب: ${inquiry.whatsapp || '—'}`,
-      `البريد الإلكتروني: ${inquiry.email || '—'}`,
-      `اللغة المفضلة: ${inquiry.preferredLanguage || 'en'}`,
-      '',
-      'الرسالة:',
-      inquiry.message,
-    ];
-    const body = locale === 'ar' ? linesAr.join('\n') : linesEn.join('\n');
-
-    await sendEmail(siteConfig.email, subject, body);
-  } catch (error) {
-    console.error(
-      '[notifications] Failed to send contact inquiry notification:',
-      error
-    );
-  }
-}
-
-/**
- * Sends a booking confirmation message to the client when a booking is created.
- * Includes full details: service, datetime, location, prices.
- * Never throws — all errors are logged and swallowed.
- */
-export async function sendBookingConfirmation(
-  booking: BookingData,
-  client: ClientData
-): Promise<void> {
-  try {
-    const locale = getLocale(client.language);
-    const serviceName = getServiceName(booking.service, locale);
-    const datetime = formatDatetime(booking.startAt, locale);
-    const deposit = formatPrice(booking.depositAmount || 0, locale);
-    const balance = formatPrice(booking.balanceAmount || 0, locale);
-    const total = formatPrice(
-      (booking.depositAmount || 0) + (booking.balanceAmount || 0),
-      locale
-    );
-    const location = booking.locationText || (locale === 'ar' ? 'غير محدد' : 'Not specified');
-
-    const message = CONFIRMATION_MESSAGES[locale]({
-      name: client.name,
-      code: booking.code,
-      service: serviceName,
-      datetime,
-      location,
-      deposit,
-      balance,
-      total,
-    });
-
-    const subject = CONFIRMATION_SUBJECTS[locale];
-
-    // WhatsApp
-    if (client.whatsapp) {
-      try {
-        await sendWhatsApp(client.whatsapp, message);
-      } catch (error) {
-        console.error('[notifications] WhatsApp confirmation failed:', error);
-      }
-    } else {
-      console.log('[notifications] No WhatsApp number for client, skipping confirmation');
-    }
-
-    // Email (fallback)
-    if (client.email) {
-      try {
-        await sendEmail(client.email, subject, message);
-      } catch (error) {
-        console.error('[notifications] Email confirmation failed:', error);
-      }
-    }
-  } catch (error) {
-    console.error('[notifications] Failed to send confirmation:', error);
-  }
-}
-
-/**
- * Sends a barber assignment notification via WhatsApp when a booking is
- * assigned or reassigned to a barber.
- * Never throws — all errors are logged and swallowed.
- */
+/** Notify a barber (via WhatsApp) that a booking was reassigned to them. */
 export async function sendBarberNotification(
-  booking: BookingData,
-  barber: BarberData,
-  options?: NotificationOptions
-): Promise<void> {
+  booking: Booking & { service?: Service | null },
+  barber: { name: string; phone: string },
+) {
+  const serviceName = booking.service?.nameEn || 'Custom Service';
+  const message = `✂️ New Booking Assigned!\nBooking: ${booking.code}\nService: ${serviceName}\nClient: ${booking.locationText}\nTime: ${booking.startAt.toLocaleString('en-US')}`;
   try {
-    const locale = getLocale(barber.language || 'en');
-    const serviceName = getServiceName(booking.service, locale);
-    const datetime = formatDatetime(booking.startAt, locale);
-    const location = booking.locationText || (locale === 'ar' ? 'غير محدد' : 'Not specified');
-    const clientName = booking.client?.name || (locale === 'ar' ? 'عميل' : 'Client');
-    const clientPhone = booking.client?.whatsapp || '';
-
-    const message = BARBER_MESSAGES[locale]({
-      barberName: barber.name,
-      code: booking.code,
-      service: serviceName,
-      datetime,
-      location,
-      clientName,
-      clientPhone,
-    });
-
-    const subject = BARBER_SUBJECTS[locale];
-
-    // WhatsApp
-    if (barber.phone) {
-      try {
-        await sendWhatsApp(barber.phone, message);
-      } catch (error) {
-        console.error('[notifications] Barber WhatsApp notification failed:', error);
-      }
-    } else {
-      console.log('[notifications] No phone number for barber, skipping assignment notification');
-    }
-
-    // Email (if a barber email is ever added to the model)
-    // Currently Barber has no email field, so only WhatsApp is sent.
-  } catch (error) {
-    console.error('[notifications] Failed to send barber notification:', error);
+    const { sendWhatsAppMessage } = await import('@/lib/whatsapp');
+    await sendWhatsAppMessage(barber.phone, message);
+  } catch (error: any) {
+    console.error('Barber notification failed:', error);
   }
 }

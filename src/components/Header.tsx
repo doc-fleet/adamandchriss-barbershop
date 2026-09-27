@@ -51,6 +51,9 @@ export default function Header({ showBooking = true }: Props) {
                 </Link>
               </>
             )}
+            <Link href="/contact" className="text-gray-600 hover:text-primary-600">
+              {t('contact')}
+            </Link>
             <LanguageToggle />
           </nav>
 
@@ -82,6 +85,13 @@ export default function Header({ showBooking = true }: Props) {
                   </Link>
                 </>
               )}
+              <Link
+                href="/contact"
+                className="block px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-100 touch-target"
+                onClick={() => setMobileOpen(false)}
+              >
+                {t('contact')}
+              </Link>
               <div className="pt-2 border-t">
                 <LanguageToggle />
               </div>
