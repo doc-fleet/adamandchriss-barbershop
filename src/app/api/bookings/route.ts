@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { generateBookingCode, getAvailableSlots } from '@/lib/utils';
 import { defaultServices, schedulingConfig } from '@/config/site';
+import { sendBookingConfirmation, sendBarberNotification } from '@/lib/notifications';
 
 export async function GET() {
   try {
@@ -123,6 +124,41 @@ export async function POST(request: Request) {
     } catch (paymobError) {
       console.error('Paymob error:', paymobError);
       // In test mode, skip real Paymob
+    }
+
+    // --- Notifications (fire-and-forget: never block the response) ---
+
+    // 1. Send booking confirmation to the client with full details
+    const notificationBooking = {
+      code: booking.code,
+      startAt: booking.startAt,
+      endAt: booking.endAt,
+      locationText: booking.locationText,
+      depositAmount: booking.depositAmount,
+      balanceAmount: booking.balanceAmount,
+      service: { nameEn: service.nameEn, nameAr: service.nameAr },
+      barber: null,
+      client: { name: client.name, whatsapp: client.whatsapp || '' },
+    };
+    try {
+      await sendBookingConfirmation(notificationBooking, client);
+    } catch (notifyError) {
+      console.error('Booking confirmation notification failed:', notifyError);
+    }
+
+    // 3. Notify the assigned barber of the new booking
+    try {
+      const barber = await prisma.barber.findUnique({
+        where: { id: booking.barberId },
+      });
+      if (barber) {
+        await sendBarberNotification(
+          notificationBooking,
+          { name: barber.name, phone: barber.phone }
+        );
+      }
+    } catch (notifyError) {
+      console.error('Barber notification failed:', notifyError);
     }
 
     // If no Paymob URL (test mode), just return success with no redirect

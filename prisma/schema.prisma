@@ -114,6 +114,21 @@ model Inquiry {
   @@index([status])
 }
 
+model ContactInquiry {
+  id                Int      @id @default(autoincrement())
+  name              String
+  whatsapp          String?  // optional contact number (cleaned digits)
+  email             String?
+  message           String
+  preferredLanguage String   @default("en") // "en" | "ar"
+  status            String   @default("NEW") // InquiryStatus: NEW | REPLIED
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+}
+
 model Payment {
   id          Int      @id @default(autoincrement())
   bookingId   Int

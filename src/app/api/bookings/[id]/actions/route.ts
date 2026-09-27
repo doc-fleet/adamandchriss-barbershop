@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
-import { sendBookingNotification, BookingAction } from '@/lib/notifications';
+import { sendBookingNotification, sendBarberNotification, BookingAction } from '@/lib/notifications';
 
 // Booking statuses that are terminal (cannot be modified further)
 const TERMINAL_STATUSES = new Set(['COMPLETED', 'CANCELLED', 'NO_SHOW']);
@@ -335,6 +335,22 @@ export async function POST(
         `[actions] Notification failed (non-blocking):`,
         notifyError
       );
+    }
+
+    // --- 6b. Notify barber on assignment change (reassign) ---
+    // Sends a WhatsApp message to the new barber when a booking is reassigned.
+    if (actionType === 'reassign' && updatedBooking.barber?.phone) {
+      try {
+        await sendBarberNotification(
+          updatedBooking,
+          { name: updatedBooking.barber.name, phone: updatedBooking.barber.phone }
+        );
+      } catch (notifyError) {
+        console.error(
+          `[actions] Barber notification failed (non-blocking):`,
+          notifyError
+        );
+      }
     }
 
     // --- 7. Response ---
